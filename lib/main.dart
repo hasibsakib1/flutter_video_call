@@ -1,21 +1,24 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// removed firebase_auth for experiment simplicity; using a generated localId
 import 'package:flutter/material.dart';
 
 import 'ui/home_screen.dart';
 import 'ui/call_screen.dart';
 import 'signaling/firestore_signaling.dart';
+import 'firebase_options.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  // Anonymous sign-in for stable uid
-  final user = FirebaseAuth.instance.currentUser ?? (await FirebaseAuth.instance.signInAnonymously()).user;
-
-  runApp(MyApp(localId: user?.uid ?? 'unknown'));
+  // For this learning experiment we don't require Firebase Auth.
+  // Generate a localId for signaling (non-persistent across app restarts).
+  final localId = DateTime.now().millisecondsSinceEpoch.toString();
+  runApp(MyApp(localId: localId));
 }
 
 class MyApp extends StatelessWidget {
