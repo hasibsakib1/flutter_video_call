@@ -111,14 +111,19 @@ class FirestoreSignaling {
       log('PC iceConnectionState: $state', name: 'FirestoreSignaling');
     };
 
+    // onAddStream is legacy (Plan B). Use onTrack for Unified Plan.
     pc.onAddStream = (stream) {
-      log('PC onAddStream: stream=${stream.id} tracks=${stream.getTracks().length}', name: 'FirestoreSignaling');
-      // notify UI
+      log('PC onAddStream (legacy): stream=${stream.id} tracks=${stream.getTracks().length}', name: 'FirestoreSignaling');
+      // notify UI (legacy event)
       onRemoteStream?.call(stream);
     };
 
     pc.onTrack = (event) {
       log('PC onTrack: streams=${event.streams.length}', name: 'FirestoreSignaling');
+      // With Unified Plan the remote MediaStream(s) are provided on the track event.
+      if (event.streams.isNotEmpty) {
+        onRemoteStream?.call(event.streams[0]);
+      }
     };
 
     // Add local stream tracks
@@ -130,8 +135,8 @@ class FirestoreSignaling {
         log('getUserMedia succeeded: audio=${_localStream?.getAudioTracks().length} video=${_localStream?.getVideoTracks().length}', name: 'FirestoreSignaling');
   // notify UI about local stream availability
   onLocalStream?.call(_localStream!);
-      await pc.addStream(_localStream!);
-      // Also add individual tracks to ensure m= lines advertise send capability on all platforms.
+  // Do NOT call addStream() with Unified Plan; instead add individual tracks.
+  // Also add individual tracks to ensure m= lines advertise send capability on all platforms.
       try {
         for (final track in _localStream!.getAudioTracks()) {
           pc.addTrack(track, _localStream!);

@@ -84,17 +84,7 @@ class _CallScreenState extends State<CallScreen> {
               children: [
                 IconButton(
                   onPressed: () async {
-                    // Start an outbound call (create & send offer)
-                    try {
-                      await widget.signaling.startCall();
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer created and sent')));
-                    } catch (e, st) {
-                      // ignore: avoid_print
-                      print('startCall failed: $e\n$st');
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create offer: $e')));
-                    }
+                    await _ensurePermissionsAndStart();
                   },
                   icon: const Icon(Icons.mic),
                 ),
@@ -105,14 +95,7 @@ class _CallScreenState extends State<CallScreen> {
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: () async {
-                    try {
-                      await widget.signaling.startCall();
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer created and sent')));
-                    } catch (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create offer: $e')));
-                    }
+                    await _ensurePermissionsAndStart();
                   },
                   child: const Text('Start call'),
                 ),
@@ -122,5 +105,22 @@ class _CallScreenState extends State<CallScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _ensurePermissionsAndStart() async {
+    try {
+      // Trigger permission prompt by requesting a short getUserMedia stream.
+      final tmp = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': true});
+      // Immediately stop tracks; actual signaling will re-acquire or reuse via FirestoreSignaling.
+      for (final t in tmp.getTracks()) {
+        t.stop();
+      }
+      await widget.signaling.startCall();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer created and sent')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission denied or error: $e')));
+    }
   }
 }
