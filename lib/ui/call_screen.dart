@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../signaling/firestore_signaling.dart';
 
 class CallScreen extends StatefulWidget {
@@ -12,9 +13,15 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen> {
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+
+  // local stream is attached directly to the renderer; no separate field required
   @override
   void initState() {
     super.initState();
+  _localRenderer.initialize();
+  _remoteRenderer.initialize();
     widget.signaling.onOffer = (offer) {
       // placeholder: handle incoming offer
       debugPrint('Received offer: $offer');
@@ -26,11 +33,23 @@ class _CallScreenState extends State<CallScreen> {
       debugPrint('Received candidate: $candidate');
     };
     widget.signaling.join();
+
+    widget.signaling.onLocalStream = (stream) {
+      _localRenderer.srcObject = stream;
+      setState(() {});
+    };
+
+    widget.signaling.onRemoteStream = (stream) {
+      _remoteRenderer.srcObject = stream;
+      setState(() {});
+    };
   }
 
   @override
   void dispose() {
-    widget.signaling.dispose();
+  widget.signaling.dispose();
+  _localRenderer.dispose();
+  _remoteRenderer.dispose();
     super.dispose();
   }
 
@@ -46,13 +65,13 @@ class _CallScreenState extends State<CallScreen> {
                 Expanded(
                   child: Container(
                     color: Colors.black12,
-                    child: const Center(child: Text('Local preview')),
+                    child: RTCVideoView(_localRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain),
                   ),
                 ),
                 Expanded(
                   child: Container(
                     color: Colors.black26,
-                    child: const Center(child: Text('Remote video')),
+                    child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain),
                   ),
                 ),
               ],

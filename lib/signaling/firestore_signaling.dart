@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'dart:developer';
 import '../config/ice.dart';
 
 /// Firestore-based signaling helper with RTCPeerConnection glue.
@@ -23,6 +24,8 @@ class FirestoreSignaling {
   void Function(Map<String, dynamic> offer)? onOffer;
   void Function(Map<String, dynamic> answer)? onAnswer;
   void Function(Map<String, dynamic> candidate)? onCandidate;
+  void Function(MediaStream stream)? onLocalStream;
+  void Function(MediaStream stream)? onRemoteStream;
 
   // Internal RTCPeerConnection state
   RTCPeerConnection? _pc;
@@ -45,7 +48,7 @@ class FirestoreSignaling {
       // We return early so subscriptions are not created when the initial write failed.
       // Keep the stack trace in logs for debugging.
       // ignore: avoid_print
-      print('Firestore: failed to ensure room exists: $e\n$st');
+  log('Firestore: failed to ensure room exists: $e\n$st', name: 'FirestoreSignaling.join');
       return;
     }
 
@@ -105,15 +108,17 @@ class FirestoreSignaling {
     };
 
     pc.onIceConnectionState = (state) {
-      print('PC iceConnectionState: $state');
+      log('PC iceConnectionState: $state', name: 'FirestoreSignaling');
     };
 
     pc.onAddStream = (stream) {
-      print('PC onAddStream: stream=${stream.id} tracks=${stream.getTracks().length}');
+      log('PC onAddStream: stream=${stream.id} tracks=${stream.getTracks().length}', name: 'FirestoreSignaling');
+      // notify UI
+      onRemoteStream?.call(stream);
     };
 
     pc.onTrack = (event) {
-      print('PC onTrack: streams=${event.streams.length}');
+      log('PC onTrack: streams=${event.streams.length}', name: 'FirestoreSignaling');
     };
 
     // Add local stream tracks
@@ -122,23 +127,25 @@ class FirestoreSignaling {
         'audio': true,
         'video': {'facingMode': 'user'}
       });
-      print('getUserMedia succeeded: audio=${_localStream?.getAudioTracks().length} video=${_localStream?.getVideoTracks().length}');
+        log('getUserMedia succeeded: audio=${_localStream?.getAudioTracks().length} video=${_localStream?.getVideoTracks().length}', name: 'FirestoreSignaling');
+  // notify UI about local stream availability
+  onLocalStream?.call(_localStream!);
       await pc.addStream(_localStream!);
       // Also add individual tracks to ensure m= lines advertise send capability on all platforms.
       try {
         for (final track in _localStream!.getAudioTracks()) {
           pc.addTrack(track, _localStream!);
-          print('Added audio track to PC');
+            log('Added audio track to PC', name: 'FirestoreSignaling');
         }
         for (final track in _localStream!.getVideoTracks()) {
           pc.addTrack(track, _localStream!);
-          print('Added video track to PC');
+            log('Added video track to PC', name: 'FirestoreSignaling');
         }
       } catch (e, st) {
-        print('addTrack failed: $e\n$st');
+          log('addTrack failed: $e\n$st', name: 'FirestoreSignaling');
       }
     } catch (e, st) {
-      print('getUserMedia failed: $e\n$st');
+        log('getUserMedia failed: $e\n$st', name: 'FirestoreSignaling');
       // if getUserMedia fails, still return pc; caller can handle UI
     }
 
@@ -151,7 +158,7 @@ class FirestoreSignaling {
 
   final offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  print('Created offer: sdp length=${offer.sdp?.length} has_m=${offer.sdp?.contains('\nm=') ?? false}');
+    log('Created offer: sdp length=${offer.sdp?.length} has_m=${offer.sdp?.contains('\nm=') ?? false}', name: 'FirestoreSignaling');
   await sendOffer({'sdp': offer.sdp, 'type': offer.type});
   }
 
@@ -171,7 +178,7 @@ class FirestoreSignaling {
 
   final answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
-  print('Created answer: sdp length=${answer.sdp?.length} has_m=${answer.sdp?.contains('\nm=') ?? false}');
+    log('Created answer: sdp length=${answer.sdp?.length} has_m=${answer.sdp?.contains('\nm=') ?? false}', name: 'FirestoreSignaling');
 
   await sendAnswer({'sdp': answer.sdp, 'type': answer.type});
   }
