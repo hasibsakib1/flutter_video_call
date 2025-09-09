@@ -63,11 +63,40 @@ class _CallScreenState extends State<CallScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(onPressed: () {}, icon: const Icon(Icons.mic)),
+                IconButton(
+                  onPressed: () async {
+                    // Start an outbound call (create & send offer)
+                    try {
+                      await widget.signaling.startCall();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer created and sent')));
+                    } catch (e, st) {
+                      // ignore: avoid_print
+                      print('startCall failed: $e\n$st');
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create offer: $e')));
+                    }
+                  },
+                  icon: const Icon(Icons.mic),
+                ),
                 const SizedBox(width: 16),
                 IconButton(onPressed: () {}, icon: const Icon(Icons.videocam)),
                 const SizedBox(width: 16),
                 ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Hang up')),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await widget.signaling.startCall();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Offer created and sent')));
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create offer: $e')));
+                    }
+                  },
+                  child: const Text('Start call'),
+                ),
               ],
             ),
           )

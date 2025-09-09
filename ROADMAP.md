@@ -38,95 +38,85 @@ Defer (not needed for learning the basics)
 Recommended ordering
 1. Firebase signaling + data model + Emulator
 2. Dart `Signaling` helper wired to Firestore/RTDB
-3. Minimal UI and permission handling
-4. Add diagnostics and optional candidate batching if you encounter cost or
-   connectivity issues
+# Roadmap & Planning
 
-Concrete next step (pick one)
-- I can scaffold the Firestore signaling helper + Emulator config and a tiny
-  `HomeScreen`/`CallScreen` wired to it (estimated 3–4 hours).
-- Or I can add `docs/SIGNALLING.md` + `lib/config/ice.dart` and an example
-  message schema if you prefer to read before code (estimated 30–60m).
+This file contains experimental plans, next steps, and roadmap items for the
+`flutter_video_call` project. It's intentionally concise and focused on the
+learning path so you can iterate quickly.
 
-Tell me which and I'll implement it.
+Current decisions
+- Signaling transport: Cloud Firestore (serverless Firestore document model).
+- Authentication: removed for the quick experiment — the app now generates a
+  short-lived `localId` (timestamp-based) instead of requiring Firebase Auth.
+  This reduces platform config friction while learning. For production,
+  re-introduce an auth system (Firebase Auth or your own) for stable client ids.
+- ICE: STUN-only by default (`stun:stun.l.google.com:19302`) in
+  `lib/config/ice.dart`. Add TURN only when NAT traversal requires it.
 
----
+Short-term (learning-focused, prioritized)
 
-### Optional: Firebase-based signaling (Firestore / Realtime Database)
+1. Fix native Firebase platform config for device testing
+   - Why: the app initializes `firebase_core` and uses Firestore; Android/iOS
+     still require the native configuration (`google-services.json` /
+     `GoogleService-Info.plist`) that matches the app package id, or you can
+     use the Firebase Emulator Suite to avoid native config during local dev.
+   - Time: 15–30m if the Android app is already registered in Firebase.
 
-Contract
-- Inputs: writes/updates to a Firestore document tree or RTDB paths representing
-  offers, answers and per-client ICE candidate entries.
-- Outputs: real-time snapshot listeners or child listeners deliver offers/answers
-  and candidates to peers in the same room.
-- Success: two peers exchange SDP and ICE via Firebase and establish a
-  connected RTCPeerConnection.
-- Failure modes: billing from high write volumes, listener race conditions,
-  security rules misconfiguration.
+2. Implement RTCPeerConnection glue in `lib/signaling/firestore_signaling.dart`
+   - What: create/manage `RTCPeerConnection`, attach local streams, create/send
+     offers and answers, apply remote descriptions, and handle ICE candidates.
+   - Important: queue remote ICE candidates until the remote description is
+     applied to avoid race conditions.
+   - Time: 3–6 hours (learning + implementation).
 
-Files to add
-- `lib/signaling/firestore_signaling.dart` (or `firebase_database_signaling.dart`)
-- `firebase/README.md` (setup notes and emulator instructions)
-- `test/unit/firestore_signaling_test.dart` (using Firestore emulator)
+3. Persist local client id across restarts (helpful)
+   - Use `shared_preferences` or a tiny file to store a UUID/localId so peers
+     can be identified consistently between app launches.
+   - Time: ~15–30m.
 
-Implementation notes
-- Use `cloud_firestore` (or `firebase_database`) and `firebase_auth` for anonymous
-  sign-in to provide stable client ids.
-- Model: `rooms/{roomId}/offer`, `rooms/{roomId}/answer`,
-  `rooms/{roomId}/candidates/{candidateId}`. Clients listen for changes and
-  filter out their own writes by `senderId`.
-- To reduce writes: batch candidates into arrays or use short TTLs and cleanup.
-- Local testing: use the Firebase Emulator Suite to avoid production billing.
+4. Add Firebase Emulator Suite guide and local workflow (`firebase/README.md`)
+   - Why: lets you iterate without native platform config and without incurring
+     production billing while testing signaling flows.
+   - Time: 30–60m to document and verify.
 
-Security & cost notes
-- Require authentication; use security rules to limit write sizes and
-  per-room write rates.
-- Firestore bills per write/read/delete; RTDB bills by bandwidth and concurrent
-  connections. If you expect many small writes (candidates), RTDB or a
-  WebSocket relay may be cheaper.
-- Add scheduled cleanup (Cloud Function or cron) or TTL fields to avoid
-  unbounded storage growth.
+5. Add a light diagnostics overlay in `CallScreen`
+   - Shows connection state, ICE gathering state, last SDP sizes, and event
+     timestamps to speed debugging when negotiating calls.
+   - Time: 1–2 hours.
 
-Tests & verification
-- Use the Firestore emulator in CI to run unit tests without incurring cost.
-- Integration: run two app instances against emulator and confirm negotiation.
+Optional (later / if needed)
+- Candidate batching or switching to RTDB if Firestore write costs become an issue.
+- TURN server for reliable connectivity in restrictive networks.
+- Security rules + emulator-based rule tests before public testing.
 
-Estimated effort: ~3–6 hours to implement basic Firestore signaling + emulator
-tests; ~2–4 hours for RTDB variant and cost-hardening.
+Next concrete actions (pick one)
+- Implement RTCPeerConnection glue in `lib/signaling/firestore_signaling.dart`
+  and wire it to `CallScreen` so you can establish P2P calls (recommended).
+  Estimated 3–6 hours.
 
-Updated ordering suggestion
-1. Pick Firebase transport: Firestore (structured, easy SDK) or RTDB
-  (lower latency / cheaper for many small writes). Scaffold
-  `lib/signaling/firestore_signaling.dart` (or `firebase_database_signaling.dart`) and test with the Emulator Suite.
-2. Implement Dart `Signaling` helper that uses the Firebase transport.
-3. Add minimal UI and tests.
+- Implement persistent `localId` using `shared_preferences` now (quick, 15–30m).
 
-If you want I can scaffold the Firestore signaling helper and emulator
-configuration now — say "scaffold firebase" and I'll implement it.
+- Update `firebase/README.md` with an Emulator Suite guide and small scripts to
+  start it (quick, 30–60m).
 
-## Medium-term
+Notes & rationale
+- For a quick learning experiment it's fine to avoid auth; a generated or
+  persisted local id is sufficient for signaling. When moving toward
+  multi-user or production scenarios, add an auth system to provide identity.
 
-- Improve UI/UX for mobile and web (responsive layout, call controls).
-- Add NAT/turn/STUN configuration options and document them.
-- Add recording/archiving option (with opt-in and storage recommendations).
+- The repo no longer depends on `firebase_auth` in `pubspec.yaml`. Generated
+  or build artifacts may still mention firebase_auth in caches; run
+  `flutter clean` before a full rebuild to refresh those artifacts.
 
-## Long-term
+Quality gates before production
+- Add Firestore security rules and test them against the Emulator.
+- Add TURN or SFU options for multi-party and NAT traversal reliability.
+- Add unit tests for signaling helpers and a small emulator-based integration
+  smoke test.
 
-- Integrate with a lightweight backend for authentication and room
-  management.
-- Add call quality metrics and a dashboard for monitoring sessions.
-- Package app examples for distribution on Play Store / App Store / desktop
-  installers.
+If you want me to implement any of the "Next concrete actions" above, tell me
+which one and I'll start — I can implement the persistent `localId` now and
+then follow with RTCPeerConnection glue in the signaling helper.
 
-## Experimental ideas
+```
 
-- Use Firestore as an optional signaling backend for serverless demos.
-- Add an automated CI smoke test that spins up two browser instances with a
-  test signaling server and verifies audio/video connectivity.
-
-
----
-
-If you want any of these scaffolded now (for example, the Node WebSocket
-signaling server and matching Dart `Signaling` helper), tell me which item to
-start and I'll implement it in this repo.
